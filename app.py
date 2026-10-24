@@ -4,55 +4,71 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 import tensorflow as tf
 from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
 import numpy as np
 from PIL import Image
 
-# Optimize CPU threads for free tier memory limits
+# Force low-memory CPU thread settings for free hosting
 tf.config.threading.set_inter_op_parallelism_threads(1)
 tf.config.threading.set_intra_op_parallelism_threads(1)
 
-app = Flask(__name__)
+# Tell Flask explicitly where templates/html are located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
 
-# Load model once when server starts
-MODEL_PATH = 'models/casting_model.keras'
-model = tf.keras.models.load_model(MODEL_PATH)
+app = Flask(__name__, template_folder=TEMPLATE_DIR)
+CORS(app)  # Prevents cross-origin browser blocking
 
-@app.route('/')
+# Load model once at startup safely
+MODEL_PATH = os.path.join(BASE_DIR, 'models', 'casting_model.keras')
+
+model = None
+if os.path.exists(MODEL_PATH):
+    model = tf.keras.models.load_model(MODEL_PATH)
+elif os.path.exists('casting_model.keras'):
+    model = tf.keras.models.load_model('casting_model.keras')
+else:
+    print("WARNING: Model file not found at expected paths!")
+
+@app.route('/', methods=['GET'])
 def home():
     return render_template('index.html')
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    try:
-        if 'file' not in request.files:
-            return jsonify({'error': 'No image file uploaded'}), 400
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': 'No selected file'}), 400
+    if model is None:
+        return jsonify({'error': 'Model file (.keras) is missing or failed to load on server.'}), 500
 
-        # Process image
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded in form submission.'}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected.'}), 400
+
+    try:
+        # Preprocess Image
         img = Image.open(file.stream).convert('RGB')
         img = img.resize((300, 300))
         
         img_array = np.array(img, dtype=np.float32) / 255.0
         img_array = np.expand_dims(img_array, axis=0)
         
-        # Run prediction
-        predictions = model.predict(img_array)
-        score = float(predictions[0][0])
+        # Predict
+        prediction = model.predict(img_array)
+        score = float(prediction[0][0])
         
-        # Classification threshold
         result = "Defective Casting" if score > 0.5 else "Ok / Non-Defective"
         confidence = round(score * 100 if score > 0.5 else (1 - score) * 100, 2)
         
         return jsonify({
+            'success': True,
             'prediction': result,
             'confidence': f"{confidence}%"
         })
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f"Processing error: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
