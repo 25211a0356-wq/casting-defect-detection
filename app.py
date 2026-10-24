@@ -47,9 +47,9 @@ def predict():
         return jsonify({'error': 'No file selected.'}), 400
 
     try:
-        # Preprocess Image
+        # Preprocess Image - Fixed to (224, 224) for MobileNetV2
         img = Image.open(file.stream).convert('RGB')
-        img = img.resize((300, 300))
+        img = img.resize((224, 224))
         
         img_array = np.array(img, dtype=np.float32) / 255.0
         img_array = np.expand_dims(img_array, axis=0)
