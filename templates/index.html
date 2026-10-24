@@ -3,70 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Metal Casting Defect Inspection</title>
+    <title>Casting Defect Inspector</title>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f7f6; text-align: center; padding: 40px; }
-        .container { max-width: 500px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        h2 { color: #333; }
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background-color: #f4f4f9; }
+        .card { background: white; max-width: 450px; margin: 0 auto; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         input[type="file"] { margin: 20px 0; }
-        button { background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; }
+        button { background-color: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; }
         button:hover { background-color: #0056b3; }
-        #result-box { margin-top: 25px; padding: 15px; border-radius: 8px; display: none; }
-        .ok { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .defective { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        #result-box { margin-top: 25px; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 18px; display: none; }
+        .success { background-color: #e2f0d9; color: #385723; }
+        .error { background-color: #fce4d6; color: #c65911; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>Casting Defect Inspector</h2>
-    <p>Upload a cast metal image to check quality status.</p>
+<div class="card">
+    <h2>Metal Casting Defect Inspector</h2>
+    <p>Upload a casting image to analyze</p>
     
-    <input type="file" id="imageInput" accept="image/*">
-    <br>
-    <button onclick="uploadImage()">Analyze Image</button>
+    <form id="upload-form">
+        <input type="file" id="image-input" accept="image/*" required><br>
+        <button type="submit" id="analyze-btn">Analyze Image</button>
+    </form>
 
-    <div id="result-box">
-        <h3 id="resultText"></h3>
-        <p id="confidenceText"></p>
-    </div>
+    <div id="result-box"></div>
 </div>
 
 <script>
-async function uploadImage() {
-    const fileInput = document.getElementById('imageInput');
-    if (!fileInput.files[0]) {
-        alert("Please select an image first!");
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", fileInput.files[0]);
-
-    const response = await fetch("/predict", {
-        method: "POST",
-        body: formData
-    });
-
-    const data = await response.json();
-    const resultBox = document.getElementById('result-box');
-    const resultText = document.getElementById('resultText');
-    const confidenceText = document.getElementById('confidenceText');
-
-    if (data.status === "success") {
-        resultBox.style.display = "block";
-        resultText.innerText = "Status: " + data.result;
-        confidenceText.innerText = "Confidence: " + data.confidence;
-
-        if (data.result.includes("OK")) {
-            resultBox.className = "ok";
-        } else {
-            resultBox.className = "defective";
+    document.getElementById('upload-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const fileInput = document.getElementById('image-input');
+        const btn = document.getElementById('analyze-btn');
+        const resultBox = document.getElementById('result-box');
+        
+        if (!fileInput.files[0]) {
+            alert('Please select an image first.');
+            return;
         }
-    } else {
-        alert("Error: " + data.error);
-    }
-}
+
+        btn.innerText = 'Analyzing... Please wait';
+        btn.disabled = true;
+        resultBox.style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        try {
+            const response = await fetch('/predict', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok && !data.error) {
+                resultBox.className = 'success';
+                resultBox.innerHTML = `Result: ${data.prediction}<br>Confidence: ${data.confidence}`;
+                resultBox.style.display = 'block';
+            } else {
+                resultBox.className = 'error';
+                resultBox.innerHTML = `Error: ${data.error || 'Prediction failed'}`;
+                resultBox.style.display = 'block';
+            }
+        } catch (err) {
+            alert('Server error or timeout. Please check your Render logs.');
+            console.error(err);
+        } finally {
+            btn.innerText = 'Analyze Image';
+            btn.disabled = false;
+        }
+    });
 </script>
 
 </body>
