@@ -12,14 +12,12 @@ from PIL import Image
 tf.config.threading.set_inter_op_parallelism_threads(1)
 tf.config.threading.set_intra_op_parallelism_threads(1)
 
-# Tell Flask explicitly where templates/html are located
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
 
 app = Flask(__name__, template_folder=TEMPLATE_DIR)
-CORS(app)  # Prevents cross-origin browser blocking
+CORS(app)
 
-# Load model once at startup safely
 MODEL_PATH = os.path.join(BASE_DIR, 'models', 'casting_model.keras')
 
 model = None
@@ -47,7 +45,7 @@ def predict():
         return jsonify({'error': 'No file selected.'}), 400
 
     try:
-        # Preprocess Image - Fixed to (224, 224) for MobileNetV2
+        # Preprocess Image - Fixed size (224, 224) for MobileNetV2
         img = Image.open(file.stream).convert('RGB')
         img = img.resize((224, 224))
         
